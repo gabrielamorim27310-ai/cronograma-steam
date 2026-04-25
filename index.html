@@ -217,6 +217,85 @@
     /* Phase gap */
     .gap-row td { height: 4px; background: var(--bg); border: none; }
 
+    /* ══════════════════════════════════════════════════
+       MOBILE  ≤ 768 px
+    ══════════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      /* Header compacto */
+      .app-header { padding: 12px 14px 10px; gap: 10px; }
+      .project-label { font-size: 9px; letter-spacing: 1px; }
+      .project-title { font-size: 15px; }
+      .project-sub   { display: none; }
+      .progress-track { width: 110px; }
+      .progress-count { display: none; }
+      .header-right { width: 100%; padding-top: 2px; }
+      .legend-chip  { padding: 3px 9px; font-size: 11px; }
+
+      /* Toolbar rola na horizontal, sem quebra de linha */
+      .toolbar {
+        padding: 7px 14px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 6px;
+      }
+      .toolbar::-webkit-scrollbar { display: none; }
+      .toolbar-hint { display: none; }
+      .btn { padding: 8px 11px; font-size: 12px; min-height: 38px; }
+
+      /* Edit banner */
+      .edit-banner { padding: 6px 14px; font-size: 10.5px; }
+
+      /* Colunas fixas menores */
+      .col-check   { width: 34px; min-width: 34px; }
+      .col-task    { width: 190px; min-width: 190px; left: 34px; }
+      .col-members { left: 224px; }
+
+      /* Fonte menor nas tarefas */
+      .task-name   { font-size: 12.5px; }
+      .phase-row td { font-size: 9px; padding: 6px 8px; }
+      .add-row td  { padding: 2px 6px 3px; }
+
+      /* Chips de membros dentro da célula de tarefa (mobile) */
+      .task-chips-mobile {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        margin-top: 4px;
+      }
+      .m-chip-sm {
+        width: 20px; height: 20px; border-radius: 50%;
+        font-size: 9px; font-weight: 700; color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; user-select: none;
+        transition: opacity .12s, transform .1s;
+        flex-shrink: 0;
+      }
+      .m-chip-sm:active { transform: scale(1.12); }
+      .m-chip-sm.off    { opacity: 0.18; }
+    }
+
+    /* ≤ 768 px: ocultar coluna de responsáveis */
+    @media (max-width: 768px) {
+      .col-members,
+      th.col-members { display: none; }
+      /* ajusta o sticky do col-task (sem o check: 34 px) */
+      .col-task    { left: 34px; }
+    }
+
+    /* ≤ 480 px: coluna de tarefa ainda menor */
+    @media (max-width: 480px) {
+      .col-task    { width: 150px; min-width: 150px; }
+      .project-title { font-size: 13px; }
+      .legend-chip { padding: 3px 7px; font-size: 10px; }
+    }
+
+    /* Desktop: ocultar chips mobile dentro das células */
+    @media (min-width: 769px) {
+      .task-chips-mobile { display: none; }
+    }
+
     @media print {
       .toolbar, .edit-banner, .del-btn, .add-btn { display: none !important; }
       .table-outer { overflow: visible !important; height: auto !important; }
@@ -582,13 +661,26 @@ function App() {
     dragging.current = false; setDrag(null);
   };
 
+  /* touch drag: move o dedo para arrastar datas no mobile */
+  const handleTouchMove = useCallback(e => {
+    if (!dragging.current || !editDates) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const wn = parseInt(
+      el?.getAttribute('data-week') ||
+      el?.closest('[data-week]')?.getAttribute('data-week') || '0'
+    );
+    if (wn > 0) onOver(wn);
+  }, [editDates, onOver]);
+
   const allTasks = phases.flatMap(p => p.tasks);
   const donePct  = allTasks.length ? Math.round(allTasks.filter(t => t.done).length / allTasks.length * 100) : 0;
 
   const syncLabels = { online: 'Sincronizado', syncing: 'Sincronizando…', offline: 'Sem conexão', connecting: 'Conectando…', local: '' };
 
   return (
-    <div onMouseUp={endDrag} onMouseLeave={endDrag}>
+    <div onMouseUp={endDrag} onMouseLeave={endDrag} onTouchEnd={endDrag} onTouchCancel={endDrag} onTouchMove={handleTouchMove}>
 
       {/* HEADER */}
       <header className="app-header" ref={headerRef}>
@@ -658,7 +750,7 @@ function App() {
       </div>
 
       {/* TABELA GANTT */}
-      <div className="table-outer">
+      <div className={`table-outer${editDates ? ' editing' : ''}`} style={{ touchAction: editDates ? 'none' : 'auto' }}>
         <table className="gantt-table">
           <thead>
             <tr>
@@ -716,6 +808,17 @@ function App() {
                             title="Clique para editar" />
                           <button className="del-btn" onClick={() => deleteTask(phase.id, task.id)} title="Remover">✕</button>
                         </div>
+                        {/* Chips circulares visíveis só no mobile (coluna de membros fica oculta) */}
+                        <div className="task-chips-mobile">
+                          {MEMBERS.map(m => (
+                            <span key={m.id}
+                              className={`m-chip-sm${task.members.includes(m.id) ? '' : ' off'}`}
+                              style={{ background: m.color }}
+                              onClick={() => toggleMember(task.id, m.id)}
+                              title={task.members.includes(m.id) ? `Remover ${m.label}` : `Atribuir ${m.label}`}
+                            >{m.label[0]}</span>
+                          ))}
+                        </div>
                       </td>
                       <td className="members-cell col-members">
                         <div className="member-chips">
@@ -740,9 +843,11 @@ function App() {
                         if (isDP)        cls += ' is-drag';
                         return (
                           <td key={w.n}
+                            data-week={w.n}
                             className={['gantt-cell', editDates ? 'edit-active' : '', tweaks?.showVacation && w.isVacation ? 'vacation' : '', w.n === TODAY_WEEK ? 'today-col' : ''].filter(Boolean).join(' ')}
                             onMouseDown={() => editDates && !w.isVacation && startDrag(task.id, w.n)}
                             onMouseEnter={() => editDates && onOver(w.n)}
+                            onTouchStart={e => { if (editDates && !w.isVacation) { e.preventDefault(); startDrag(task.id, w.n); } }}
                           >
                             {inR && <div className={cls} style={{ background: rgba(phase.color, task.done ? 0.3 : 0.75) }}></div>}
                           </td>

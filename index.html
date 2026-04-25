@@ -8,7 +8,9 @@
   <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
-  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <!-- Firebase Realtime Database -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -48,12 +50,8 @@
     }
     .header-left { flex: 1; min-width: 280px; }
     .project-label {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 4px;
     }
     .project-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); }
     .project-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
@@ -62,29 +60,21 @@
     .progress-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.4s ease; }
     .progress-label { font-size: 11px; font-weight: 600; color: var(--accent); }
     .progress-count { font-size: 11px; color: var(--text-dim); }
-
-    .header-right {}
     .legend-title { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
     .legend { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .legend-chip {
       display: flex; align-items: center; gap: 5px;
       padding: 4px 11px; border-radius: 20px;
-      font-size: 12px; font-weight: 600; color: #fff;
-      user-select: none;
+      font-size: 12px; font-weight: 600; color: #fff; user-select: none;
     }
-    .legend-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.5); }
 
     /* ── TOOLBAR ── */
     .toolbar {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       padding: 8px 28px;
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      position: sticky;
-      top: var(--header-h, 104px);
-      z-index: 99;
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+      position: sticky; top: var(--header-h, 104px); z-index: 99;
     }
     .btn {
       display: inline-flex; align-items: center; gap: 5px;
@@ -92,74 +82,70 @@
       font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif;
       cursor: pointer; border: 1px solid var(--border);
       background: var(--surface); color: var(--text);
-      transition: background 0.12s, border-color 0.12s;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
       white-space: nowrap;
     }
     .btn:hover { background: var(--bg); }
     .btn-danger:hover { color: #c0392b; border-color: #c0392b; }
-    .toolbar-hint {
-      margin-left: auto;
-      font-size: 11px;
-      color: var(--text-dim);
-      text-wrap: pretty;
-    }
+    .btn-active { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; }
+    .btn-active:hover { opacity: 0.88; }
+    .toolbar-hint { margin-left: auto; font-size: 11px; color: var(--text-dim); }
 
-    /* ── TABLE WRAPPER ── */
+    /* Sync indicator */
+    .sync-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+    .sync-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .sync-online     { background: #22c55e; }
+    .sync-connecting { background: #f59e0b; animation: blink 1s ease-in-out infinite; }
+    .sync-syncing    { background: #f59e0b; animation: blink 0.5s ease-in-out infinite; }
+    .sync-offline    { background: #ef4444; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    /* Edit dates banner */
+    .edit-banner {
+      background: #eff6ff; border-bottom: 1px solid #bfdbfe;
+      padding: 6px 28px; font-size: 11px; color: #1d4ed8;
+      display: flex; align-items: center; gap: 8px;
+      position: sticky; top: var(--toolbar-bottom, 148px); z-index: 98;
+    }
+    body.dark .edit-banner { background: #1a2740; border-color: #2d4a6e; color: #93c5fd; }
+
+    /* ── TABLE ── */
     .table-outer { overflow-x: auto; overflow-y: auto; height: calc(100vh - var(--sticky-offset, 148px)); }
-    .gantt-table {
-      border-collapse: separate;
-      border-spacing: 0;
-      min-width: max-content;
-    }
-    .gantt-table th,
-    .gantt-table td {
-      border-bottom: 1px solid var(--border);
-    }
+    .gantt-table { border-collapse: separate; border-spacing: 0; min-width: max-content; }
+    .gantt-table th, .gantt-table td { border-bottom: 1px solid var(--border); }
 
     /* Sticky left columns */
-    .col-check  { width: 40px; min-width: 40px; position: sticky; left: 0;   z-index: 6; }
-    .col-task   { width: 300px; min-width: 300px; position: sticky; left: 40px; z-index: 6; }
-    .col-members{ width: 168px; min-width: 168px; position: sticky; left: 340px; z-index: 6; border-right: 2px solid var(--border-strong) !important; }
+    .col-check   { width: 40px;  min-width: 40px;  position: sticky; left: 0;   z-index: 6; }
+    .col-task    { width: 300px; min-width: 300px; position: sticky; left: 40px; z-index: 6; }
+    .col-members { width: 168px; min-width: 168px; position: sticky; left: 340px; z-index: 6; border-right: 2px solid var(--border-strong) !important; }
 
     /* Column headers */
-    .th-spacer { background: var(--surface); }
+    .th-spacer { background: var(--surface); position: sticky; top: 0; z-index: 12; }
     .th-month-cell {
       font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
       color: var(--text-dim); padding: 8px 0 2px; text-align: center;
-      background: var(--surface);
-      position: sticky; top: 0; z-index: 8;
+      background: var(--surface); position: sticky; top: 0; z-index: 8;
     }
     .th-month-cell.vac-month { color: #c0973a; }
     .th-week-cell {
       font-size: 10px; font-weight: 400; color: var(--text-dim);
       padding: 2px 0 7px; text-align: center;
       width: var(--cell-w); min-width: var(--cell-w);
-      background: var(--surface);
-      white-space: nowrap;
+      background: var(--surface); white-space: nowrap;
       position: sticky; top: 28px; z-index: 8;
     }
     .th-week-cell.vacation { background: #fdf7ed; color: #c0973a; }
     body.dark .th-week-cell.vacation { background: #211e17; }
     .th-week-cell.today-col { color: var(--accent); font-weight: 700; }
     .th-left-cell {
-      padding: 8px 10px 7px;
-      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
-      color: var(--text-dim);
-      background: var(--surface);
-      position: sticky; top: 0; z-index: 12;
+      padding: 8px 10px 7px; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim);
+      background: var(--surface); position: sticky; top: 0; z-index: 12;
     }
-    .th-spacer { position: sticky; top: 0; z-index: 12; background: var(--surface); }
 
     /* Phase header */
-    .phase-row td {
-      padding: 7px 10px 6px;
-      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
-      color: rgba(255,255,255,0.9);
-    }
-    .phase-name-input {
-      background: transparent; border: none; outline: none;
-      font: inherit; color: inherit; cursor: pointer; width: 100%;
-    }
+    .phase-row td { padding: 7px 10px 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: rgba(255,255,255,0.9); }
+    .phase-name-input { background: transparent; border: none; outline: none; font: inherit; color: inherit; cursor: pointer; width: 100%; }
     .phase-name-input:focus { cursor: text; border-bottom: 1px solid rgba(255,255,255,0.5); }
 
     /* Task rows */
@@ -168,113 +154,71 @@
     body.dark .task-row:hover { background: rgba(107,159,212,0.06); }
     .task-row.done .task-name { text-decoration: line-through; color: var(--text-dim); }
 
-    .check-cell {
-      text-align: center; padding: 0 6px;
-      vertical-align: middle; cursor: pointer;
-      background: var(--surface);
-    }
-    .check-cell input[type="checkbox"] {
-      width: 15px; height: 15px; cursor: pointer;
-      accent-color: var(--accent); margin: 0;
-    }
-    .name-cell { padding: 8px 8px; background: var(--surface); vertical-align: middle; }
+    .check-cell { text-align: center; padding: 0 6px; vertical-align: middle; cursor: pointer; background: var(--surface); }
+    .check-cell input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); margin: 0; }
+    .name-cell { padding: 8px; background: var(--surface); vertical-align: middle; }
     .name-row { display: flex; align-items: center; gap: 4px; }
     .task-name {
       flex: 1; border: none; background: transparent; outline: none;
       font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text);
       cursor: pointer; padding: 0; line-height: 1.4;
-      resize: none; overflow: hidden;
-      display: block; width: 100%;
+      resize: none; overflow: hidden; display: block; width: 100%;
     }
     .task-name:focus { cursor: text; }
     .del-btn {
       opacity: 0; border: none; background: none; cursor: pointer;
       color: var(--text-dim); font-size: 13px; padding: 4px 5px; border-radius: 4px;
-      transition: opacity 0.12s, color 0.12s; flex-shrink: 0;
-      font-family: 'DM Sans', sans-serif;
+      transition: opacity 0.12s, color 0.12s; flex-shrink: 0; font-family: 'DM Sans', sans-serif;
     }
     .task-row:hover .del-btn { opacity: 0.4; }
     .del-btn:hover { opacity: 1 !important; color: #c0392b; }
 
     .members-cell { padding: 0 8px; background: var(--surface); vertical-align: middle; }
     .member-chips { display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 0; }
-    .m-chip {
-      padding: 2px 8px; border-radius: 20px;
-      font-size: 11px; font-weight: 600; color: #fff;
-      cursor: pointer; transition: opacity 0.12s, transform 0.1s;
-      user-select: none;
-    }
+    .m-chip { padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; color: #fff; cursor: pointer; transition: opacity 0.12s, transform 0.1s; user-select: none; }
     .m-chip:hover { transform: scale(1.06); }
     .m-chip.off { opacity: 0.15; }
 
     /* Gantt cells */
     .gantt-cell {
       width: var(--cell-w); min-width: var(--cell-w);
-      padding: 0; cursor: crosshair;
+      padding: 0; cursor: default; /* padrão: rolar */
       position: relative; min-height: var(--row-h); height: auto;
-      vertical-align: middle;
-      user-select: none;
+      vertical-align: middle; user-select: none;
     }
+    .gantt-cell.edit-active { cursor: crosshair; }
     .gantt-cell.vacation {
-      background: repeating-linear-gradient(
-        135deg,
-        transparent, transparent 4px,
-        rgba(192,151,58,0.08) 4px, rgba(192,151,58,0.08) 8px
-      );
+      background: repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(192,151,58,0.08) 4px, rgba(192,151,58,0.08) 8px);
     }
     body.dark .gantt-cell.vacation {
-      background: repeating-linear-gradient(
-        135deg,
-        transparent, transparent 4px,
-        rgba(192,151,58,0.12) 4px, rgba(192,151,58,0.12) 8px
-      );
+      background: repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(192,151,58,0.12) 4px, rgba(192,151,58,0.12) 8px);
     }
     .gantt-cell.today-col::before {
-      content: '';
-      position: absolute; top: 0; bottom: 0; left: 50%;
+      content: ''; position: absolute; top: 0; bottom: 0; left: 50%;
       width: 2px; transform: translateX(-50%);
       background: var(--accent); opacity: 0.3; pointer-events: none;
     }
-    .gantt-bar {
-      position: absolute;
-      top: 8px; bottom: 8px;
-      left: 2px; right: 2px;
-      border-radius: 3px;
-      pointer-events: none;
-    }
+    .gantt-bar { position: absolute; top: 8px; bottom: 8px; left: 2px; right: 2px; border-radius: 3px; pointer-events: none; }
     .gantt-bar.bar-start { left: 6px; border-radius: 8px 3px 3px 8px; }
     .gantt-bar.bar-end   { right: 6px; border-radius: 3px 8px 8px 3px; }
     .gantt-bar.bar-alone { left: 6px; right: 6px; border-radius: 8px; }
     .gantt-bar.is-done   { opacity: 0.35; }
     .gantt-bar.is-drag   { opacity: 0.55; }
 
-    /* Vacation label in phase row */
-    .vac-label { font-size: 9px; text-align: center; opacity: 0.6; color: #c0973a; }
-
-    /* Add task row */
+    /* Add task */
     .add-row td { padding: 3px 10px 4px; background: var(--surface); }
-    .add-btn {
-      width: 100%; text-align: left; padding: 5px 8px;
-      background: none; border: 1px dashed var(--border);
-      border-radius: 5px; font-size: 12px; color: var(--text-dim);
-      cursor: pointer; font-family: 'DM Sans', sans-serif;
-      transition: all 0.12s;
-    }
+    .add-btn { width: 100%; text-align: left; padding: 5px 8px; background: none; border: 1px dashed var(--border); border-radius: 5px; font-size: 12px; color: var(--text-dim); cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
     .add-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(61,111,168,0.04); }
 
-    /* Vacation notice row */
-    .vac-row td {
-      background: #fdf7ed; text-align: center;
-      font-size: 11px; color: #c0973a; padding: 6px 4px; letter-spacing: 0.3px;
-    }
+    /* Vacation row */
+    .vac-row td { background: #fdf7ed; text-align: center; font-size: 11px; color: #c0973a; padding: 6px 4px; }
     body.dark .vac-row td { background: #211e17; }
-    .vac-row .col-check, .vac-row .col-task, .vac-row .col-members { text-align: right; }
 
-    /* Phase gap spacer */
+    /* Phase gap */
     .gap-row td { height: 4px; background: var(--bg); border: none; }
 
     @media print {
-      .toolbar, .del-btn, .add-btn { display: none !important; }
+      .toolbar, .edit-banner, .del-btn, .add-btn { display: none !important; }
       .table-outer { overflow: visible !important; height: auto !important; }
       .app-header { position: static !important; }
       .th-month-cell, .th-week-cell, .th-left-cell, .th-spacer { position: static !important; }
@@ -285,9 +229,156 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+/* ══════════════════════════════════════════════════
+   TWEAKS PANEL (inline — sem dependência externa)
+══════════════════════════════════════════════════ */
+const __TWK = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:9999;width:272px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    background:rgba(250,249,247,.92);color:#29261b;
+    backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);
+    border:.5px solid rgba(255,255,255,.55);border-radius:14px;
+    box-shadow:0 12px 40px rgba(0,0,0,.2);font:12px/1.4 'DM Sans',sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none;border-bottom:.5px solid rgba(0,0,0,.06)}
+  .twk-hd b{font-size:12px;font-weight:600}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.5);
+    width:22px;height:22px;border-radius:6px;cursor:pointer;font-size:14px;line-height:22px;text-align:center}
+  .twk-x:hover{background:rgba(0,0,0,.07);color:#29261b}
+  .twk-body{padding:10px 14px 14px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+  .twk-sect{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:rgba(41,38,27,.4);padding-top:6px}
+  .twk-sect:first-child{padding-top:0}
+  .twk-row{display:flex;flex-direction:column;gap:4px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;color:rgba(41,38,27,.7)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.45);font-variant-numeric:tabular-nums;font-size:11px}
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:5px 0;border-radius:99px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:.5px solid rgba(0,0,0,.15);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:pointer}
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:99px;background:rgba(0,0,0,.14);transition:background .15s;cursor:pointer;padding:0;flex-shrink:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.22);transition:transform .15s;display:block}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+`;
 
-/* ── MEMBERS ───────────────────────────────────────────── */
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  const set = React.useCallback((key, val) => setValues(prev => ({ ...prev, [key]: val })), []);
+  return [values, set];
+}
+
+function TweaksPanel({ title = 'Aparência', children }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+  const pos = React.useRef({ x: 16, y: 16 });
+
+  const clamp = React.useCallback(() => {
+    const el = ref.current; if (!el) return;
+    const maxX = Math.max(16, window.innerWidth  - el.offsetWidth  - 16);
+    const maxY = Math.max(16, window.innerHeight - el.offsetHeight - 16);
+    pos.current.x = Math.min(maxX, Math.max(16, pos.current.x));
+    pos.current.y = Math.min(maxY, Math.max(16, pos.current.y));
+    el.style.right  = pos.current.x + 'px';
+    el.style.bottom = pos.current.y + 'px';
+  }, []);
+
+  React.useEffect(() => {
+    const fn = e => {
+      if (e?.data?.type === '__activate_edit_mode')   setOpen(true);
+      if (e?.data?.type === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', fn);
+    return () => window.removeEventListener('message', fn);
+  }, []);
+
+  React.useEffect(() => { if (open) { clamp(); window.addEventListener('resize', clamp); return () => window.removeEventListener('resize', clamp); } }, [open, clamp]);
+
+  const drag = e => {
+    const el = ref.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const ox = window.innerWidth - r.right - (e.clientX - r.right);
+    const oy = window.innerHeight - r.bottom - (e.clientY - r.bottom);
+    const move = ev => { pos.current = { x: pos.current.x - (ev.clientX - e.clientX), y: pos.current.y - (ev.clientY - e.clientY) }; e = ev; clamp(); };
+    const up = () => { removeEventListener('mousemove', move); removeEventListener('mouseup', up); };
+    addEventListener('mousemove', move); addEventListener('mouseup', up);
+  };
+
+  if (!open) return null;
+  return <>
+    <style>{__TWK}</style>
+    <div ref={ref} className="twk-panel" style={{ right: pos.current.x, bottom: pos.current.y }}>
+      <div className="twk-hd" onMouseDown={drag}>
+        <b>{title}</b>
+        <button className="twk-x" onMouseDown={e => e.stopPropagation()} onClick={() => setOpen(false)}>✕</button>
+      </div>
+      <div className="twk-body">{children}</div>
+    </div>
+  </>;
+}
+
+function TweakSection({ label, children }) {
+  return <><div className="twk-sect">{label}</div>{children}</>;
+}
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'} onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+function TweakSlider({ label, value, min = 0, max = 100, step = 1, unit = '', onChange }) {
+  return (
+    <div className="twk-row">
+      <div className="twk-lbl"><span>{label}</span><span className="twk-val">{value > 0 ? '+' : ''}{value}{unit}</span></div>
+      <input type="range" className="twk-slider" min={min} max={max} step={step} value={value} onChange={e => onChange(Number(e.target.value))} />
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   FIREBASE CONFIG
+   ─────────────────────────────────────────────────
+   Para ativar a colaboração em tempo real entre os
+   integrantes do grupo, siga os passos:
+
+   1. Acesse https://console.firebase.google.com
+   2. Clique em "Criar projeto" (ex: cronograma-steam)
+   3. No menu lateral: Build → Realtime Database
+      → "Criar banco de dados" → Modo de teste
+   4. Volte em Visão geral do projeto → "</> Web"
+      → copie o objeto firebaseConfig
+   5. Cole os valores nos campos abaixo e republique
+
+   As regras do modo de teste permitem leitura/escrita
+   pública por 30 dias (suficiente para o projeto).
+══════════════════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey:            "COLE_AQUI",
+  authDomain:        "COLE_AQUI.firebaseapp.com",
+  databaseURL:       "https://COLE_AQUI-default-rtdb.firebaseio.com",
+  projectId:         "COLE_AQUI",
+  storageBucket:     "COLE_AQUI.firebasestorage.app",
+  messagingSenderId: "COLE_AQUI",
+  appId:             "COLE_AQUI",
+};
+
+let PHASES_REF = null;
+try {
+  if (FIREBASE_CONFIG.apiKey !== 'COLE_AQUI') {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    PHASES_REF = firebase.database().ref('cronograma-steam/phases');
+    console.log('Firebase conectado — colaboração em tempo real ativa.');
+  } else {
+    console.info('Firebase não configurado — modo local (somente localStorage).');
+  }
+} catch (e) { console.error('Erro ao iniciar Firebase:', e); }
+
+/* ══════════════════════════════════════════════════
+   DADOS DO PROJETO
+══════════════════════════════════════════════════ */
+const { useState, useEffect, useRef, useCallback } = React;
+
 const MEMBERS = [
   { id: 'bia',     label: 'Bia',     color: '#4a7fc1' },
   { id: 'lia',     label: 'Lia',     color: '#3a9e72' },
@@ -295,19 +386,17 @@ const MEMBERS = [
   { id: 'manu',    label: 'Manu',    color: '#c07830' },
   { id: 'gabriel', label: 'Gabriel', color: '#b04040' },
 ];
-const memberMap = Object.fromEntries(MEMBERS.map(m => [m.id, m]));
 
-/* ── WEEKS ─────────────────────────────────────────────── */
 function buildWeeks() {
-  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const start = new Date(2026, 3, 24);
   return Array.from({ length: 23 }, (_, i) => {
     const d = new Date(start); d.setDate(d.getDate() + i * 7);
     return {
       n: i + 1,
       label: `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`,
-      month: months[d.getMonth()],
-      isVacation: d.getMonth() === 6, // julho
+      month: MONTHS[d.getMonth()],
+      isVacation: d.getMonth() === 6,
       date: new Date(d),
     };
   });
@@ -319,51 +408,48 @@ function getTodayWeek() {
   for (let i = 0; i < WEEKS.length - 1; i++) {
     if (now >= WEEKS[i].date && now < WEEKS[i+1].date) return WEEKS[i].n;
   }
-  if (now >= WEEKS[WEEKS.length-1].date) return WEEKS[WEEKS.length-1].n;
-  return null;
+  return now >= WEEKS[WEEKS.length-1].date ? WEEKS[WEEKS.length-1].n : null;
 }
 const TODAY_WEEK = getTodayWeek();
 
-/* ── INITIAL DATA ──────────────────────────────────────── */
 let _uid = 300;
-const uid = () => `t${_uid++}`;
+const uid = () => `t${++_uid}`;
 
 const INITIAL = [
   { id:'p1', name:'Planejamento e Pesquisa', color:'#3d6fa8', tasks:[
-    { id:'t1',  name:'Definição do problema e hipóteses de pesquisa', members:['bia','lia','gabi','manu','gabriel'], s:1, e:2,  done:false },
-    { id:'t2',  name:'Pesquisa bibliográfica e revisão de literatura',  members:['bia','lia'],                       s:1, e:3,  done:false },
-    { id:'t3',  name:'Análise de projetos similares existentes',        members:['gabi','gabriel'],                  s:2, e:3,  done:false },
-    { id:'t4',  name:'Levantamento de materiais, custos e viabilidade', members:['manu','gabriel'],                  s:3, e:4,  done:false },
+    { id:'t1',  name:'Definição do problema e hipóteses de pesquisa', members:['bia','lia','gabi','manu','gabriel'], s:1,  e:2,  done:false },
+    { id:'t2',  name:'Pesquisa bibliográfica e revisão de literatura', members:['bia','lia'],                       s:1,  e:3,  done:false },
+    { id:'t3',  name:'Análise de projetos similares existentes',       members:['gabi','gabriel'],                  s:2,  e:3,  done:false },
+    { id:'t4',  name:'Levantamento de materiais, custos e viabilidade',members:['manu','gabriel'],                  s:3,  e:4,  done:false },
   ]},
   { id:'p2', name:'Design e Projeto', color:'#3a9e72', tasks:[
-    { id:'t5',  name:'Esboços e dimensionamento da cadeira',            members:['gabi','manu'],                     s:4, e:5,  done:false },
-    { id:'t6',  name:'Definição e aquisição dos materiais',             members:['gabriel','lia'],                   s:5, e:6,  done:false },
-    { id:'t7',  name:'Cálculos estruturais e viabilidade técnica',      members:['gabriel','bia'],                   s:5, e:6,  done:false },
+    { id:'t5',  name:'Esboços e dimensionamento da cadeira',           members:['gabi','manu'],     s:4,  e:5,  done:false },
+    { id:'t6',  name:'Definição e aquisição dos materiais',            members:['gabriel','lia'],   s:5,  e:6,  done:false },
+    { id:'t7',  name:'Cálculos estruturais e viabilidade técnica',     members:['gabriel','bia'],   s:5,  e:6,  done:false },
   ]},
   { id:'p3', name:'Construção do Protótipo', color:'#b05ba0', tasks:[
-    { id:'t8',  name:'Montagem do protótipo — versão 1',                members:['bia','gabi','gabriel'],             s:7, e:10, done:false },
-    { id:'t9',  name:'Registro fotográfico e documentação do processo', members:['lia','manu'],                      s:7, e:10, done:false },
+    { id:'t8',  name:'Montagem do protótipo — versão 1',               members:['bia','gabi','gabriel'], s:7,  e:10, done:false },
+    { id:'t9',  name:'Registro fotográfico e documentação do processo',members:['lia','manu'],           s:7,  e:10, done:false },
   ]},
   { id:'p4', name:'Testes e Iteração', color:'#c07830', tasks:[
-    { id:'t10', name:'Testes de funcionalidade e adaptação',            members:['bia','gabriel','gabi'],             s:15,e:16, done:false },
-    { id:'t11', name:'Coleta e análise dos dados',                      members:['lia','manu'],                      s:16,e:17, done:false },
-    { id:'t12', name:'Ajustes e melhorias — versão 2',                  members:['gabriel','gabi','bia'],             s:17,e:18, done:false },
+    { id:'t10', name:'Testes de funcionalidade e adaptação',           members:['bia','gabriel','gabi'],  s:15, e:16, done:false },
+    { id:'t11', name:'Coleta e análise dos dados',                     members:['lia','manu'],            s:16, e:17, done:false },
+    { id:'t12', name:'Ajustes e melhorias — versão 2',                 members:['gabriel','gabi','bia'],  s:17, e:18, done:false },
   ]},
   { id:'p5', name:'Redação do Artigo Científico', color:'#b04040', tasks:[
-    { id:'t13', name:'Introdução, justificativa e objetivos',           members:['bia','lia'],                       s:15,e:17, done:false },
-    { id:'t14', name:'Referencial teórico',                             members:['lia','gabi'],                      s:16,e:18, done:false },
-    { id:'t15', name:'Metodologia',                                     members:['gabriel','manu'],                  s:18,e:19, done:false },
-    { id:'t16', name:'Resultados e discussão',                          members:['bia','gabi','gabriel'],             s:19,e:21, done:false },
-    { id:'t17', name:'Revisão, formatação e entrega final',             members:['manu','lia','bia'],                 s:21,e:22, done:false },
+    { id:'t13', name:'Introdução, justificativa e objetivos',          members:['bia','lia'],             s:15, e:17, done:false },
+    { id:'t14', name:'Referencial teórico',                            members:['lia','gabi'],            s:16, e:18, done:false },
+    { id:'t15', name:'Metodologia',                                    members:['gabriel','manu'],        s:18, e:19, done:false },
+    { id:'t16', name:'Resultados e discussão',                         members:['bia','gabi','gabriel'],  s:19, e:21, done:false },
+    { id:'t17', name:'Revisão, formatação e entrega final',            members:['manu','lia','bia'],      s:21, e:22, done:false },
   ]},
   { id:'p6', name:'Apresentação Final', color:'#5a5aa0', tasks:[
-    { id:'t18', name:'Preparação dos slides e materiais visuais',       members:['gabi','lia','manu'],               s:21,e:22, done:false },
-    { id:'t19', name:'Ensaio geral da apresentação',                    members:['bia','lia','gabi','manu','gabriel'],s:22,e:23, done:false },
-    { id:'t20', name:'Apresentação final',                              members:['bia','lia','gabi','manu','gabriel'],s:23,e:23, done:false },
+    { id:'t18', name:'Preparação dos slides e materiais visuais',      members:['gabi','lia','manu'],                s:21, e:22, done:false },
+    { id:'t19', name:'Ensaio geral da apresentação',                   members:['bia','lia','gabi','manu','gabriel'],s:22, e:23, done:false },
+    { id:'t20', name:'Apresentação final',                             members:['bia','lia','gabi','manu','gabriel'],s:23, e:23, done:false },
   ]},
 ];
 
-/* ── MONTH GROUPS ──────────────────────────────────────── */
 function monthGroups() {
   const groups = [];
   WEEKS.forEach(w => {
@@ -375,53 +461,69 @@ function monthGroups() {
 }
 const MONTH_GROUPS = monthGroups();
 
-/* ── HELPERS ───────────────────────────────────────────── */
-function hexToRgba(hex, alpha) {
-  const r = parseInt(hex.slice(1,3),16);
-  const g = parseInt(hex.slice(3,5),16);
-  const b = parseInt(hex.slice(5,7),16);
-  return `rgba(${r},${g},${b},${alpha})`;
+function rgba(hex, a) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════
    APP
-════════════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════ */
 function App() {
   const [phases, setPhases] = useState(() => {
-    try { const s = localStorage.getItem('steam-cron-v2'); return s ? JSON.parse(s) : INITIAL; }
+    try { const s = localStorage.getItem('steam-cron-v3'); return s ? JSON.parse(s) : INITIAL; }
     catch { return INITIAL; }
   });
-  const [drag, setDrag] = useState(null); // { taskId, anchor, current }
-  const dragging = useRef(false);
+  const [editDates,  setEditDates]  = useState(false);
+  const [drag,       setDrag]       = useState(null);
+  const [syncStatus, setSyncStatus] = useState(PHASES_REF ? 'connecting' : 'local');
+
+  const dragging  = useRef(false);
   const headerRef = useRef(null);
-  const toolbarRef = useRef(null);
+  const toolbarRef= useRef(null);
+  const bannerRef = useRef(null);
+  const lastWrite = useRef(0);
+  const phasesRef = useRef(phases);
+  useEffect(() => { phasesRef.current = phases; }, [phases]);
 
+  /* sticky heights */
   useEffect(() => {
-    const update = () => {
-      const hh = headerRef.current?.offsetHeight || 0;
+    const upd = () => {
+      const hh = headerRef.current?.offsetHeight  || 0;
       const th = toolbarRef.current?.offsetHeight || 0;
-      document.documentElement.style.setProperty('--header-h', hh + 'px');
-      document.documentElement.style.setProperty('--sticky-offset', (hh + th) + 'px');
+      const bh = bannerRef.current?.offsetHeight  || 0;
+      document.documentElement.style.setProperty('--header-h',      hh + 'px');
+      document.documentElement.style.setProperty('--toolbar-bottom',(hh + th) + 'px');
+      document.documentElement.style.setProperty('--sticky-offset', (hh + th + bh) + 'px');
     };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
+    upd();
+    window.addEventListener('resize', upd);
+    return () => window.removeEventListener('resize', upd);
+  }, [editDates]);
 
+  /* tweaks */
+  const [tweaks, setTweaks] = useTweaks({ darkMode: false, compactRows: false, showVacation: true, cellWidth: 0 });
   useEffect(() => {
-    const updateCellWidth = () => {
+    if (!tweaks) return;
+    document.body.classList.toggle('dark', tweaks.darkMode);
+    document.documentElement.style.setProperty('--row-h', tweaks.compactRows ? '32px' : '42px');
+  }, [tweaks]);
+
+  /* cell width */
+  useEffect(() => {
+    const upd = () => {
       const outer = document.querySelector('.table-outer');
       if (!outer) return;
-      const available = outer.clientWidth - 40 - 300 - 168 - 2;
-      const auto = Math.max(28, Math.floor(available / 23));
-      const zoom = tweaks?.cellWidth ?? 0;
-      document.documentElement.style.setProperty('--cell-w', (auto + zoom) + 'px');
+      const avail = outer.clientWidth - 40 - 300 - 168 - 2;
+      const auto  = Math.max(28, Math.floor(avail / 23));
+      document.documentElement.style.setProperty('--cell-w', (auto + (tweaks?.cellWidth ?? 0)) + 'px');
     };
-    updateCellWidth();
-    window.addEventListener('resize', updateCellWidth);
-    return () => window.removeEventListener('resize', updateCellWidth);
+    upd();
+    window.addEventListener('resize', upd);
+    return () => window.removeEventListener('resize', upd);
   }, [tweaks?.cellWidth]);
 
+  /* textarea auto-height */
   useEffect(() => {
     document.querySelectorAll('textarea.task-name').forEach(el => {
       el.style.height = 'auto';
@@ -429,101 +531,136 @@ function App() {
     });
   }, [phases]);
 
-  // Tweaks
-  const { TweaksPanel, TweakSection, TweakToggle, TweakSlider, useTweaks } = window;
-  const [tweaks, setTweaks] = useTweaks(/*EDITMODE-BEGIN*/{
-    "darkMode": false,
-    "compactRows": false,
-    "showVacation": true,
-    "cellWidth": 0
-  }/*EDITMODE-END*/);
-
+  /* ── Firebase: recebe edições dos outros integrantes ── */
   useEffect(() => {
-    if (!tweaks) return;
-    document.body.classList.toggle('dark', tweaks.darkMode);
-    document.documentElement.style.setProperty('--row-h', tweaks.compactRows ? '32px' : '42px');
-  }, [tweaks]);
+    if (!PHASES_REF) return;
+    const handler = snap => {
+      if (Date.now() - lastWrite.current < 2000) return; /* ignora eco próprio */
+      const raw = snap.val();
+      if (!raw) return;
+      try {
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (Array.isArray(data)) {
+          setPhases(data);
+          localStorage.setItem('steam-cron-v3', JSON.stringify(data));
+          setSyncStatus('online');
+        }
+      } catch (e) { console.error('Firebase parse:', e); }
+    };
+    PHASES_REF.on('value', handler);
+    setSyncStatus('online');
+    return () => PHASES_REF.off('value', handler);
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('steam-cron-v2', JSON.stringify(phases));
-  }, [phases]);
+  /* ── mutate: salva local + envia para Firebase ── */
+  const mutate = useCallback(updater => {
+    const next = updater(phasesRef.current);
+    setPhases(next);
+    localStorage.setItem('steam-cron-v3', JSON.stringify(next));
+    if (PHASES_REF) {
+      lastWrite.current = Date.now();
+      setSyncStatus('syncing');
+      PHASES_REF.set(JSON.stringify(next))
+        .then(()  => setSyncStatus('online'))
+        .catch(() => setSyncStatus('offline'));
+    }
+  }, []);
+
+  /* mutations */
+  const setTask       = (tid, upd) => mutate(ps => ps.map(p => ({ ...p, tasks: p.tasks.map(t => t.id === tid ? { ...t, ...upd } : t) })));
+  const setPhaseField = (pid, upd) => mutate(ps => ps.map(p => p.id === pid ? { ...p, ...upd } : p));
+  const deleteTask    = (pid, tid) => mutate(ps => ps.map(p => p.id === pid ? { ...p, tasks: p.tasks.filter(t => t.id !== tid) } : p));
+  const addTask       = pid => { const t = { id: uid(), name: 'Nova tarefa', members: [], s: 1, e: 2, done: false }; mutate(ps => ps.map(p => p.id === pid ? { ...p, tasks: [...p.tasks, t] } : p)); };
+  const toggleMember  = (tid, mid) => mutate(ps => ps.map(p => ({ ...p, tasks: p.tasks.map(t => { if (t.id !== tid) return t; return { ...t, members: t.members.includes(mid) ? t.members.filter(m => m !== mid) : [...t.members, mid] }; }) })));
+
+  /* drag (só ativo quando editDates = true) */
+  const startDrag = (tid, n) => { dragging.current = true; setDrag({ taskId: tid, anchor: n, current: n }); };
+  const onOver    = n => { if (dragging.current) setDrag(d => d ? { ...d, current: n } : null); };
+  const endDrag   = () => {
+    if (drag && dragging.current)
+      setTask(drag.taskId, { s: Math.min(drag.anchor, drag.current), e: Math.max(drag.anchor, drag.current) });
+    dragging.current = false; setDrag(null);
+  };
 
   const allTasks = phases.flatMap(p => p.tasks);
   const donePct  = allTasks.length ? Math.round(allTasks.filter(t => t.done).length / allTasks.length * 100) : 0;
 
-  /* mutations */
-  const setTask = (tid, upd) => setPhases(ps => ps.map(p => ({
-    ...p, tasks: p.tasks.map(t => t.id === tid ? { ...t, ...upd } : t)
-  })));
-  const setPhaseField = (pid, upd) => setPhases(ps => ps.map(p => p.id === pid ? { ...p, ...upd } : p));
-  const deleteTask = (pid, tid) => setPhases(ps => ps.map(p =>
-    p.id === pid ? { ...p, tasks: p.tasks.filter(t => t.id !== tid) } : p
-  ));
-  const addTask = (pid) => {
-    const t = { id: uid(), name: 'Nova tarefa', members: [], s: 1, e: 2, done: false };
-    setPhases(ps => ps.map(p => p.id === pid ? { ...p, tasks: [...p.tasks, t] } : p));
-  };
-  const toggleMember = (tid, mid) => setPhases(ps => ps.map(p => ({
-    ...p, tasks: p.tasks.map(t => {
-      if (t.id !== tid) return t;
-      return { ...t, members: t.members.includes(mid) ? t.members.filter(m => m !== mid) : [...t.members, mid] };
-    })
-  })));
-
-  /* drag */
-  const startDrag = (tid, n) => { dragging.current = true; setDrag({ taskId: tid, anchor: n, current: n }); };
-  const onOver    = (n) => { if (dragging.current) setDrag(d => d ? { ...d, current: n } : null); };
-  const endDrag   = () => {
-    if (drag && dragging.current) {
-      setTask(drag.taskId, { s: Math.min(drag.anchor, drag.current), e: Math.max(drag.anchor, drag.current) });
-    }
-    dragging.current = false; setDrag(null);
-  };
+  const syncLabels = { online: 'Sincronizado', syncing: 'Sincronizando…', offline: 'Sem conexão', connecting: 'Conectando…', local: '' };
 
   return (
     <div onMouseUp={endDrag} onMouseLeave={endDrag}>
-      {/* ── HEADER ── */}
+
+      {/* HEADER */}
       <header className="app-header" ref={headerRef}>
         <div className="header-left">
           <div className="project-label">Projeto STEAM · 2.ª Série · 2.º Trimestre 2026</div>
           <div className="project-title">Cadeira de Rodas de Baixo Custo para Cães Paraplégicos</div>
           <div className="project-sub">24 de abril → 26 de setembro de 2026 · Por aula/encontro</div>
           <div className="progress-row">
-            <div className="progress-track">
-              <div className="progress-fill" style={{ width: donePct + '%' }}></div>
-            </div>
+            <div className="progress-track"><div className="progress-fill" style={{ width: donePct + '%' }}></div></div>
             <span className="progress-label">{donePct}%</span>
-            <span className="progress-count">{allTasks.filter(t=>t.done).length}/{allTasks.length} tarefas concluídas</span>
+            <span className="progress-count">{allTasks.filter(t => t.done).length}/{allTasks.length} tarefas concluídas</span>
           </div>
         </div>
         <div className="header-right">
           <div className="legend-title">Equipe</div>
           <div className="legend">
-            {MEMBERS.map(m => (
-              <span key={m.id} className="legend-chip" style={{ background: m.color }}>
-                {m.label}
-              </span>
-            ))}
+            {MEMBERS.map(m => <span key={m.id} className="legend-chip" style={{ background: m.color }}>{m.label}</span>)}
           </div>
         </div>
       </header>
 
-      {/* ── TOOLBAR ── */}
+      {/* TOOLBAR */}
       <div className="toolbar" ref={toolbarRef}>
-        <button className="btn" onClick={() => window.print()}>⎙ Imprimir / PDF</button>
+        <button className="btn" onClick={() => window.print()}>⎙ Imprimir</button>
         <button className="btn btn-danger" onClick={() => {
-          if (confirm('Restaurar dados originais? Todas as edições serão perdidas.')) setPhases(INITIAL);
+          if (confirm('Restaurar dados originais? Todas as edições serão perdidas.')) mutate(() => INITIAL);
         }}>↩ Restaurar</button>
+
+        {/* ── BOTÃO EDITAR DATAS ── */}
+        <button
+          className={`btn${editDates ? ' btn-active' : ''}`}
+          onClick={() => setEditDates(v => !v)}
+          title={editDates ? 'Desativar edição — rolar tabela livremente' : 'Ativar para arrastar e ajustar datas das tarefas'}
+        >
+          {editDates ? '🔓 Editando Datas' : '📅 Editar Datas'}
+        </button>
+
+        <button className="btn" onClick={() =>
+          window.dispatchEvent(new MessageEvent('message', { data: { type: '__activate_edit_mode' } }))
+        }>⚙ Aparência</button>
+
+        {syncStatus !== 'local' && (
+          <span className="sync-status">
+            <span className={`sync-dot sync-${syncStatus}`}></span>
+            {syncLabels[syncStatus]}
+          </span>
+        )}
+
         <span className="toolbar-hint">
-          ✏ Clique no nome para editar &nbsp;·&nbsp; ☐ Marque tarefas concluídas &nbsp;·&nbsp; ←→ Arraste nas semanas para ajustar o período &nbsp;·&nbsp; 👤 Clique nos membros para atribuir
+          {editDates
+            ? '←→ Arraste nas colunas de semana para definir início/fim de cada tarefa'
+            : '✏ Clique no nome para editar · ☐ Marque concluídas · 👤 Clique nos membros'}
         </span>
       </div>
 
-      {/* ── TABLE ── */}
+      {/* BANNER (modo edição) */}
+      <div ref={bannerRef}>
+        {editDates && (
+          <div className="edit-banner">
+            <span>📅</span>
+            <span>
+              <strong>Modo edição de datas ativo</strong> — arraste sobre as semanas para ajustar início e fim de cada tarefa.
+              &nbsp;Clique em <strong>Editar Datas</strong> novamente para desativar e rolar a tabela normalmente.
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* TABELA GANTT */}
       <div className="table-outer">
         <table className="gantt-table">
           <thead>
-            {/* Month row */}
             <tr>
               <th className="th-spacer col-check" rowSpan={2}></th>
               <th className="th-left-cell col-task" rowSpan={2}>Tarefa</th>
@@ -534,14 +671,9 @@ function App() {
                 </th>
               ))}
             </tr>
-            {/* Week row */}
             <tr>
               {WEEKS.map(w => (
-                <th key={w.n} className={[
-                  'th-week-cell',
-                  w.isVacation ? 'vacation' : '',
-                  w.n === TODAY_WEEK ? 'today-col' : '',
-                ].filter(Boolean).join(' ')}>
+                <th key={w.n} className={['th-week-cell', w.isVacation ? 'vacation' : '', w.n === TODAY_WEEK ? 'today-col' : ''].filter(Boolean).join(' ')}>
                   {w.label}
                 </th>
               ))}
@@ -550,29 +682,23 @@ function App() {
           <tbody>
             {phases.map((phase, pi) => (
               <React.Fragment key={phase.id}>
-                {pi > 0 && <tr className="gap-row">{Array.from({length: 3 + WEEKS.length}, (_,i) => <td key={i}></td>)}</tr>}
+                {pi > 0 && <tr className="gap-row">{Array.from({ length: 3 + WEEKS.length }, (_, i) => <td key={i}></td>)}</tr>}
 
-                {/* Phase header */}
+                {/* Cabeçalho da fase */}
                 <tr className="phase-row" style={{ background: phase.color }}>
-                  <td className="col-check" style={{ background: phase.color }}></td>
-                  <td className="col-task" style={{ background: phase.color }}>
-                    <input
-                      className="phase-name-input"
-                      value={phase.name}
+                  <td className="col-check"   style={{ background: phase.color }}></td>
+                  <td className="col-task"    style={{ background: phase.color }}>
+                    <input className="phase-name-input" value={phase.name}
                       onChange={e => setPhaseField(phase.id, { name: e.target.value })}
-                      title="Clique para renomear a fase"
-                    />
+                      title="Clique para renomear" />
                   </td>
                   <td className="col-members" style={{ background: phase.color }}></td>
                   {WEEKS.map(w => (
-                    <td key={w.n} style={{
-                      background: w.isVacation ? 'rgba(0,0,0,0.12)' : hexToRgba(phase.color, 0.85),
-                      padding: 0,
-                    }}></td>
+                    <td key={w.n} style={{ background: w.isVacation ? 'rgba(0,0,0,0.12)' : rgba(phase.color, 0.85), padding: 0 }}></td>
                   ))}
                 </tr>
 
-                {/* Tasks */}
+                {/* Tarefas */}
                 {phase.tasks.map(task => {
                   const isDP  = drag && drag.taskId === task.id;
                   const effS  = isDP ? Math.min(drag.anchor, drag.current) : task.s;
@@ -580,34 +706,21 @@ function App() {
                   return (
                     <tr key={task.id} className={`task-row${task.done ? ' done' : ''}`}>
                       <td className="check-cell col-check">
-                        <input type="checkbox" checked={task.done}
-                          onChange={e => setTask(task.id, { done: e.target.checked })} />
+                        <input type="checkbox" checked={task.done} onChange={e => setTask(task.id, { done: e.target.checked })} />
                       </td>
                       <td className="name-cell col-task">
                         <div className="name-row">
-                          <textarea
-                            className="task-name"
-                            value={task.name}
-                            rows={1}
-                            onChange={e => {
-                              e.target.style.height = 'auto';
-                              e.target.style.height = e.target.scrollHeight + 'px';
-                              setTask(task.id, { name: e.target.value });
-                            }}
-                            onFocus={e => {
-                              e.target.style.height = 'auto';
-                              e.target.style.height = e.target.scrollHeight + 'px';
-                            }}
-                            title="Clique para editar"
-                          />
-                          <button className="del-btn" onClick={() => deleteTask(phase.id, task.id)} title="Remover tarefa">✕</button>
+                          <textarea className="task-name" value={task.name} rows={1}
+                            onChange={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; setTask(task.id, { name: e.target.value }); }}
+                            onFocus={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                            title="Clique para editar" />
+                          <button className="del-btn" onClick={() => deleteTask(phase.id, task.id)} title="Remover">✕</button>
                         </div>
                       </td>
                       <td className="members-cell col-members">
                         <div className="member-chips">
                           {MEMBERS.map(m => (
-                            <span
-                              key={m.id}
+                            <span key={m.id}
                               className={`m-chip${task.members.includes(m.id) ? '' : ' off'}`}
                               style={{ background: m.color }}
                               onClick={() => toggleMember(task.id, m.id)}
@@ -617,31 +730,21 @@ function App() {
                         </div>
                       </td>
                       {WEEKS.map(w => {
-                        const inR = w.n >= effS && w.n <= effE;
-                        const isS = w.n === effS, isE = w.n === effE;
+                        const inR   = w.n >= effS && w.n <= effE;
                         const alone = effS === effE;
                         let cls = 'gantt-bar';
-                        if (alone) cls += ' bar-alone';
-                        else if (isS) cls += ' bar-start';
-                        else if (isE) cls += ' bar-end';
-                        if (task.done) cls += ' is-done';
-                        if (isDP) cls += ' is-drag';
+                        if (alone)       cls += ' bar-alone';
+                        else if (w.n === effS) cls += ' bar-start';
+                        else if (w.n === effE) cls += ' bar-end';
+                        if (task.done)   cls += ' is-done';
+                        if (isDP)        cls += ' is-drag';
                         return (
-                          <td
-                            key={w.n}
-                            className={[
-                              'gantt-cell',
-                              tweaks?.showVacation && w.isVacation ? 'vacation' : '',
-                              w.n === TODAY_WEEK ? 'today-col' : '',
-                            ].filter(Boolean).join(' ')}
-                            onMouseDown={() => !w.isVacation && startDrag(task.id, w.n)}
-                            onMouseEnter={() => onOver(w.n)}
+                          <td key={w.n}
+                            className={['gantt-cell', editDates ? 'edit-active' : '', tweaks?.showVacation && w.isVacation ? 'vacation' : '', w.n === TODAY_WEEK ? 'today-col' : ''].filter(Boolean).join(' ')}
+                            onMouseDown={() => editDates && !w.isVacation && startDrag(task.id, w.n)}
+                            onMouseEnter={() => editDates && onOver(w.n)}
                           >
-                            {inR && (
-                              <div className={cls} style={{
-                                background: hexToRgba(phase.color, task.done ? 0.3 : 0.75),
-                              }}></div>
-                            )}
+                            {inR && <div className={cls} style={{ background: rgba(phase.color, task.done ? 0.3 : 0.75) }}></div>}
                           </td>
                         );
                       })}
@@ -649,12 +752,10 @@ function App() {
                   );
                 })}
 
-                {/* Add task */}
+                {/* Adicionar tarefa */}
                 <tr className="add-row">
                   <td className="col-check"></td>
-                  <td className="col-task">
-                    <button className="add-btn" onClick={() => addTask(phase.id)}>+ Adicionar tarefa</button>
-                  </td>
+                  <td className="col-task"><button className="add-btn" onClick={() => addTask(phase.id)}>+ Adicionar tarefa</button></td>
                   <td className="col-members"></td>
                   {WEEKS.map(w => <td key={w.n}></td>)}
                 </tr>
@@ -664,17 +765,18 @@ function App() {
         </table>
       </div>
 
-      {/* ── TWEAKS ── */}
-      <TweaksPanel>
-        <TweakSection label="Aparência">
-          <TweakToggle label="Modo escuro"          value={tweaks?.darkMode}     onChange={v => setTweaks('darkMode', v)} />
-          <TweakToggle label="Linhas compactas"     value={tweaks?.compactRows}  onChange={v => setTweaks('compactRows', v)} />
+      {/* PAINEL DE APARÊNCIA */}
+      <TweaksPanel title="Aparência">
+        <TweakSection label="Tema">
+          <TweakToggle label="Modo escuro"           value={tweaks?.darkMode}     onChange={v => setTweaks('darkMode', v)} />
+          <TweakToggle label="Linhas compactas"      value={tweaks?.compactRows}  onChange={v => setTweaks('compactRows', v)} />
           <TweakToggle label="Mostrar recesso (Jul)" value={tweaks?.showVacation} onChange={v => setTweaks('showVacation', v)} />
         </TweakSection>
-        <TweakSection label="Tamanho das células">
-          <TweakSlider label="Zoom semanas (+/- auto)" value={tweaks?.cellWidth ?? 0} min={-20} max={20} step={2} onChange={v => setTweaks('cellWidth', v)} />
+        <TweakSection label="Zoom das semanas">
+          <TweakSlider label="Largura das células" value={tweaks?.cellWidth ?? 0} min={-20} max={20} step={2} unit="px" onChange={v => setTweaks('cellWidth', v)} />
         </TweakSection>
       </TweaksPanel>
+
     </div>
   );
 }

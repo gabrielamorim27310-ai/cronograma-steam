@@ -206,6 +206,33 @@
     .gantt-bar.is-done   { opacity: 0.35; }
     .gantt-bar.is-drag   { opacity: 0.55; }
 
+    /* ── REORDER DRAG ── */
+    .drag-handle {
+      cursor: grab;
+      color: var(--text-dim);
+      opacity: 0;
+      font-size: 15px;
+      line-height: 1;
+      padding: 2px 4px 2px 0;
+      flex-shrink: 0;
+      transition: opacity .12s;
+      user-select: none;
+      touch-action: none;
+    }
+    .task-row:hover .drag-handle { opacity: 0.45; }
+    .drag-handle:hover            { opacity: 0.8 !important; }
+    .drag-handle:active           { cursor: grabbing; }
+
+    /* Linha de indicação de destino */
+    .task-row.drop-top    > td { border-top:    2px solid var(--accent) !important; }
+    .task-row.drop-bottom > td { border-bottom: 2px solid var(--accent) !important; }
+
+    /* Tarefa sendo arrastada fica translúcida */
+    .task-row.dragging-row { opacity: 0.35; }
+
+    /* Cabeçalho de fase como zona de drop (soltar = mover p/ fim da fase) */
+    .phase-row.drop-phase > td { box-shadow: inset 0 -3px 0 rgba(255,255,255,0.55); }
+
     /* Add task */
     .add-row td { padding: 3px 10px 4px; background: var(--surface); }
     .add-btn { width: 100%; text-align: left; padding: 5px 8px; background: none; border: 1px dashed var(--border); border-radius: 5px; font-size: 12px; color: var(--text-dim); cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
@@ -554,9 +581,11 @@ function App() {
     try { const s = localStorage.getItem('steam-cron-v3'); return s ? JSON.parse(s) : INITIAL; }
     catch { return INITIAL; }
   });
-  const [editDates,  setEditDates]  = useState(false);
-  const [drag,       setDrag]       = useState(null);
-  const [syncStatus, setSyncStatus] = useState(PHASES_REF ? 'connecting' : 'local');
+  const [editDates,   setEditDates]  = useState(false);
+  const [drag,        setDrag]       = useState(null);
+  const [syncStatus,  setSyncStatus] = useState(PHASES_REF ? 'connecting' : 'local');
+  const [reorderDrag, setReorderDrag] = useState(null); // { taskId, phaseId }
+  const [dropPos,     setDropPos]     = useState(null); // { phaseId, taskId, half }
 
   const dragging  = useRef(false);
   const headerRef = useRef(null);
@@ -661,6 +690,55 @@ function App() {
       setTask(drag.taskId, { s: Math.min(drag.anchor, drag.current), e: Math.max(drag.anchor, drag.current) });
     dragging.current = false; setDrag(null);
   };
+
+  /* ── REORDER TASKS ── */
+  const onRDragStart = useCallback((e, taskId, phaseId) => {
+    setReorderDrag({ taskId, phaseId });
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', taskId);
+  }, []);
+
+  const onRDragOver = useCallback((e, phaseId, taskId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const half = e.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+    setDropPos(prev =>
+      prev?.phaseId === phaseId && prev?.taskId === taskId && prev?.half === half
+        ? prev : { phaseId, taskId, half }
+    );
+  }, []);
+
+  const onRDrop = useCallback((e, targetPhaseId, targetTaskId) => {
+    e.preventDefault();
+    if (!reorderDrag) return;
+    const half = dropPos?.half || 'bottom';
+
+    let movedTask = null;
+    let next = phasesRef.current.map(p => {
+      if (p.id !== reorderDrag.phaseId) return p;
+      movedTask = p.tasks.find(t => t.id === reorderDrag.taskId);
+      return { ...p, tasks: p.tasks.filter(t => t.id !== reorderDrag.taskId) };
+    });
+
+    if (!movedTask) { setReorderDrag(null); setDropPos(null); return; }
+
+    next = next.map(p => {
+      if (p.id !== targetPhaseId) return p;
+      if (targetTaskId === null) return { ...p, tasks: [...p.tasks, movedTask] };
+      const idx = p.tasks.findIndex(t => t.id === targetTaskId);
+      const at = half === 'top' ? idx : idx + 1;
+      const tasks = [...p.tasks];
+      tasks.splice(at, 0, movedTask);
+      return { ...p, tasks };
+    });
+
+    mutate(() => next);
+    setReorderDrag(null);
+    setDropPos(null);
+  }, [reorderDrag, dropPos, mutate]);
+
+  const onRDragEnd = useCallback(() => { setReorderDrag(null); setDropPos(null); }, []);
 
   /* touch drag: move o dedo para arrastar datas no mobile */
   const handleTouchMove = useCallback(e => {
@@ -778,7 +856,13 @@ function App() {
                 {pi > 0 && <tr className="gap-row">{Array.from({ length: 3 + WEEKS.length }, (_, i) => <td key={i}></td>)}</tr>}
 
                 {/* Cabeçalho da fase */}
-                <tr className="phase-row" style={{ background: phase.color }}>
+                <tr
+                  className={`phase-row${dropPos?.phaseId === phase.id && dropPos.taskId === null ? ' drop-phase' : ''}`}
+                  style={{ background: phase.color }}
+                  onDragOver={e => { e.preventDefault(); setDropPos({ phaseId: phase.id, taskId: null, half: 'bottom' }); }}
+                  onDragLeave={() => setDropPos(null)}
+                  onDrop={e => onRDrop(e, phase.id, null)}
+                >
                   <td className="col-check"   style={{ background: phase.color }}></td>
                   <td className="col-task"    style={{ background: phase.color }}>
                     <input className="phase-name-input" value={phase.name}
@@ -797,12 +881,30 @@ function App() {
                   const effS  = isDP ? Math.min(drag.anchor, drag.current) : task.s;
                   const effE  = isDP ? Math.max(drag.anchor, drag.current) : task.e;
                   return (
-                    <tr key={task.id} className={`task-row${task.done ? ' done' : ''}`}>
+                    <tr key={task.id}
+                      className={[
+                        'task-row',
+                        task.done ? 'done' : '',
+                        reorderDrag?.taskId === task.id ? 'dragging-row' : '',
+                        dropPos?.taskId === task.id && dropPos.half === 'top'    ? 'drop-top'    : '',
+                        dropPos?.taskId === task.id && dropPos.half === 'bottom' ? 'drop-bottom' : '',
+                      ].filter(Boolean).join(' ')}
+                      onDragOver={e => onRDragOver(e, phase.id, task.id)}
+                      onDragLeave={() => setDropPos(null)}
+                      onDrop={e => onRDrop(e, phase.id, task.id)}
+                    >
                       <td className="check-cell col-check">
                         <input type="checkbox" checked={task.done} onChange={e => setTask(task.id, { done: e.target.checked })} />
                       </td>
                       <td className="name-cell col-task">
                         <div className="name-row">
+                          <span
+                            className="drag-handle"
+                            draggable
+                            onDragStart={e => onRDragStart(e, task.id, phase.id)}
+                            onDragEnd={onRDragEnd}
+                            title="Arrastar para mover tarefa"
+                          >⠿</span>
                           <textarea className="task-name" value={task.name} rows={1}
                             onChange={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; setTask(task.id, { name: e.target.value }); }}
                             onFocus={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}

@@ -576,12 +576,56 @@ function rgba(hex, a) {
 }
 
 /* ══════════════════════════════════════════════════
+   SELETOR DE USUÁRIO
+══════════════════════════════════════════════════ */
+function UserPicker({ onSelect }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+    }}>
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+        padding: '28px 32px', maxWidth: 340, width: '90%',
+        boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>Cronograma STEAM</div>
+        <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4, color: 'var(--text)' }}>Quem é você?</div>
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 20 }}>Selecione seu nome para continuar.</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {MEMBERS.map(m => (
+            <button key={m.id} onClick={() => onSelect(m)} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 14px', borderRadius: 8, border: '1px solid var(--border)',
+              background: 'var(--bg)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+              fontSize: 13, fontWeight: 600, color: 'var(--text)', textAlign: 'left',
+              transition: 'border-color .12s, background .12s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = m.color; e.currentTarget.style.background = 'var(--surface)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)'; }}
+            >
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: m.color, flexShrink: 0 }}></span>
+              {m.label}
+              {m.teacher && <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)' }}>Professor(a)</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
    APP
 ══════════════════════════════════════════════════ */
 function App() {
   const [phases, setPhases] = useState(() => {
     try { const s = localStorage.getItem('steam-cron-v3'); return s ? JSON.parse(s) : INITIAL; }
     catch { return INITIAL; }
+  });
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { const s = localStorage.getItem('steam-cron-user'); return s ? JSON.parse(s) : null; }
+    catch { return null; }
   });
   const [editDates,   setEditDates]  = useState(false);
   const [drag,        setDrag]       = useState(null);
@@ -755,6 +799,12 @@ function App() {
     if (wn > 0) onOver(wn);
   }, [editDates, onOver]);
 
+  const selectUser = m => {
+    localStorage.setItem('steam-cron-user', JSON.stringify(m));
+    setCurrentUser(m);
+    setEditDates(false);
+  };
+
   const allTasks = phases.flatMap(p => p.tasks);
   const donePct  = allTasks.length ? Math.round(allTasks.filter(t => t.done).length / allTasks.length * 100) : 0;
 
@@ -762,6 +812,8 @@ function App() {
 
   return (
     <div onMouseUp={endDrag} onMouseLeave={endDrag} onTouchEnd={endDrag} onTouchCancel={endDrag} onTouchMove={handleTouchMove}>
+
+      {!currentUser && <UserPicker onSelect={selectUser} />}
 
       {/* HEADER */}
       <header className="app-header" ref={headerRef}>
@@ -794,18 +846,30 @@ function App() {
           if (confirm('Restaurar dados originais? Todas as edições serão perdidas.')) mutate(() => INITIAL);
         }}>↩ Restaurar</button>
 
-        {/* ── BOTÃO EDITAR DATAS ── */}
-        <button
-          className={`btn${editDates ? ' btn-active' : ''}`}
-          onClick={() => setEditDates(v => !v)}
-          title={editDates ? 'Desativar edição — rolar tabela livremente' : 'Ativar para arrastar e ajustar datas das tarefas'}
-        >
-          {editDates ? '🔓 Editando Datas' : '📅 Editar Datas'}
-        </button>
+        {/* ── BOTÃO EDITAR DATAS (só professores) ── */}
+        {currentUser?.teacher && (
+          <button
+            className={`btn${editDates ? ' btn-active' : ''}`}
+            onClick={() => setEditDates(v => !v)}
+            title={editDates ? 'Desativar edição — rolar tabela livremente' : 'Ativar para arrastar e ajustar datas das tarefas'}
+          >
+            {editDates ? '🔓 Editando Datas' : '📅 Editar Datas'}
+          </button>
+        )}
 
         <button className="btn" onClick={() =>
           window.dispatchEvent(new MessageEvent('message', { data: { type: '__activate_edit_mode' } }))
         }>⚙ Aparência</button>
+
+        {currentUser && (
+          <button className="btn" onClick={() => { setCurrentUser(null); localStorage.removeItem('steam-cron-user'); setEditDates(false); }}
+            title="Trocar usuário"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: currentUser.color, flexShrink: 0 }}></span>
+            {currentUser.label}
+          </button>
+        )}
 
         {syncStatus !== 'local' && (
           <span className="sync-status">

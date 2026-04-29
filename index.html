@@ -487,11 +487,13 @@ try {
 const { useState, useEffect, useRef, useCallback } = React;
 
 const MEMBERS = [
-  { id: 'bia',     label: 'Bia',     color: '#4a7fc1' },
-  { id: 'lia',     label: 'Lia',     color: '#3a9e72' },
-  { id: 'gabi',    label: 'Gabi',    color: '#b05ba0' },
-  { id: 'manu',    label: 'Manu',    color: '#c07830' },
-  { id: 'gabriel', label: 'Gabriel', color: '#b04040' },
+  { id: 'bia',       label: 'Bia',       color: '#4a7fc1' },
+  { id: 'lia',       label: 'Lia',       color: '#3a9e72' },
+  { id: 'gabi',      label: 'Gabi',      color: '#b05ba0' },
+  { id: 'manu',      label: 'Manu',      color: '#c07830' },
+  { id: 'gabriel',   label: 'Gabriel',   color: '#b04040' },
+  { id: 'lucianne',  label: 'Lucianne',  color: '#5a7a5a', teacher: true },
+  { id: 'fabricio',  label: 'Fabrício',  color: '#6a5a8a', teacher: true },
 ];
 
 function buildWeeks() {
@@ -776,7 +778,11 @@ function App() {
         <div className="header-right">
           <div className="legend-title">Equipe</div>
           <div className="legend">
-            {MEMBERS.map(m => <span key={m.id} className="legend-chip" style={{ background: m.color }}>{m.label}</span>)}
+            {MEMBERS.filter(m => !m.teacher).map(m => <span key={m.id} className="legend-chip" style={{ background: m.color }}>{m.label}</span>)}
+          </div>
+          <div className="legend-title" style={{ marginTop: 8 }}>Professores</div>
+          <div className="legend">
+            {MEMBERS.filter(m => m.teacher).map(m => <span key={m.id} className="legend-chip" style={{ background: m.color }}>{m.label}</span>)}
           </div>
         </div>
       </header>

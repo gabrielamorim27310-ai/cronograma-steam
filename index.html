@@ -541,13 +541,13 @@ const INITIAL = [
     { id:'t9',  name:'Registro fotográfico e documentação do processo',members:['lia','manu'],           s:7,  e:10, done:false },
   ]},
   { id:'p4', name:'Testes e Iteração', color:'#c07830', tasks:[
-    { id:'t10', name:'Testes de funcionalidade e adaptação',           members:['bia','gabriel','gabi'],  s:15, e:16, done:false },
-    { id:'t11', name:'Coleta e análise dos dados',                     members:['lia','manu'],            s:16, e:17, done:false },
-    { id:'t12', name:'Ajustes e melhorias — versão 2',                 members:['gabriel','gabi','bia'],  s:17, e:18, done:false },
+    { id:'t10', name:'Testes de funcionalidade e adaptação',           members:['bia','gabriel','gabi'],  s:16, e:17, done:false },
+    { id:'t11', name:'Coleta e análise dos dados',                     members:['lia','manu'],            s:17, e:18, done:false },
+    { id:'t12', name:'Ajustes e melhorias — versão 2',                 members:['gabriel','gabi','bia'],  s:18, e:19, done:false },
   ]},
   { id:'p5', name:'Redação do Artigo Científico', color:'#b04040', tasks:[
-    { id:'t13', name:'Introdução, justificativa e objetivos',          members:['bia','lia'],             s:15, e:17, done:false },
-    { id:'t14', name:'Referencial teórico',                            members:['lia','gabi'],            s:16, e:18, done:false },
+    { id:'t13', name:'Introdução, justificativa e objetivos',          members:['bia','lia'],             s:16, e:18, done:false },
+    { id:'t14', name:'Referencial teórico',                            members:['lia','gabi'],            s:17, e:19, done:false },
     { id:'t15', name:'Metodologia',                                    members:['gabriel','manu'],        s:18, e:19, done:false },
     { id:'t16', name:'Resultados e discussão',                         members:['bia','gabi','gabriel'],  s:19, e:21, done:false },
     { id:'t17', name:'Revisão, formatação e entrega final',            members:['manu','lia','bia'],      s:21, e:22, done:false },
@@ -578,7 +578,27 @@ function rgba(hex, a) {
 /* ══════════════════════════════════════════════════
    SELETOR DE USUÁRIO
 ══════════════════════════════════════════════════ */
+function UserPickerBtn({ m, onSelect }) {
+  return (
+    <button key={m.id} onClick={() => onSelect(m)} style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '9px 14px', borderRadius: 8, border: '1px solid var(--border)',
+      background: 'var(--bg)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+      fontSize: 13, fontWeight: 600, color: 'var(--text)', textAlign: 'left',
+      transition: 'border-color .12s, background .12s', width: '100%',
+    }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = m.color; e.currentTarget.style.background = 'var(--surface)'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)'; }}
+    >
+      <span style={{ width: 10, height: 10, borderRadius: '50%', background: m.color, flexShrink: 0 }}></span>
+      {m.label}
+    </button>
+  );
+}
+
 function UserPicker({ onSelect }) {
+  const students = MEMBERS.filter(m => !m.teacher);
+  const teachers = MEMBERS.filter(m => m.teacher);
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
@@ -586,29 +606,21 @@ function UserPicker({ onSelect }) {
     }}>
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
-        padding: '28px 32px', maxWidth: 340, width: '90%',
+        padding: '28px 32px', maxWidth: 360, width: '90%',
         boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
       }}>
         <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>Cronograma STEAM</div>
         <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4, color: 'var(--text)' }}>Quem é você?</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 20 }}>Selecione seu nome para continuar.</div>
+
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 8 }}>Integrantes</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+          {students.map(m => <UserPickerBtn key={m.id} m={m} onSelect={onSelect} />)}
+        </div>
+
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 8 }}>Professores</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {MEMBERS.map(m => (
-            <button key={m.id} onClick={() => onSelect(m)} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '9px 14px', borderRadius: 8, border: '1px solid var(--border)',
-              background: 'var(--bg)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
-              fontSize: 13, fontWeight: 600, color: 'var(--text)', textAlign: 'left',
-              transition: 'border-color .12s, background .12s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = m.color; e.currentTarget.style.background = 'var(--surface)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)'; }}
-            >
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: m.color, flexShrink: 0 }}></span>
-              {m.label}
-              {m.teacher && <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 500, color: 'var(--text-dim)' }}>Professor(a)</span>}
-            </button>
-          ))}
+          {teachers.map(m => <UserPickerBtn key={m.id} m={m} onSelect={onSelect} />)}
         </div>
       </div>
     </div>
@@ -846,8 +858,8 @@ function App() {
           if (confirm('Restaurar dados originais? Todas as edições serão perdidas.')) mutate(() => INITIAL);
         }}>↩ Restaurar</button>
 
-        {/* ── BOTÃO EDITAR DATAS (só professores) ── */}
-        {currentUser?.teacher && (
+        {/* ── BOTÃO EDITAR DATAS ── */}
+        {currentUser && (
           <button
             className={`btn${editDates ? ' btn-active' : ''}`}
             onClick={() => setEditDates(v => !v)}
